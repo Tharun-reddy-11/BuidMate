@@ -16,8 +16,9 @@ public class ProjectTemplate {
   @Column(nullable=false) private String technology;
   @Column(nullable=false) private BigDecimal collegePrice;
   @Column(nullable=false) private BigDecimal resumePrice;
-  @ElementCollection(fetch=FetchType.EAGER) @CollectionTable(name="template_features", joinColumns=@JoinColumn(name="template_id"))
-  @Column(name="feature") private List<String> features = new ArrayList<>();
+  @Convert(converter = StringListConverter.class)
+  @Column(name = "features", length = 2000)
+  private List<String> features = new ArrayList<>();
   @Column(nullable=false) private boolean featured;
   @Column(nullable=false) private boolean published = true;
   public Long getId(){return id;} public void setId(Long v){id=v;}
@@ -32,4 +33,3 @@ public class ProjectTemplate {
   public boolean isFeatured(){return featured;} public void setFeatured(boolean v){featured=v;}
   public boolean isPublished(){return published;} public void setPublished(boolean v){published=v;}
 }
-
