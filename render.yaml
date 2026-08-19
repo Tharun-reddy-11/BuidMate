@@ -2,6 +2,7 @@ services:
   - type: web
     name: buildmate-api
     runtime: docker
+    plan: free
     rootDir: backend
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
@@ -22,10 +23,13 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
-      - key: MAIL_USERNAME
+      - key: BREVO_API_KEY
         sync: false
-      - key: MAIL_APP_PASSWORD
-        sync: false
+      - key: MAIL_FROM_EMAIL
+        value: tharunreddyb30@gmail.com
+      - key: MAIL_FROM_NAME
+        value: Tharun from BuildMate
       - key: MAIL_ENABLED
-        value: true
-
+        value: "true"
+      - key: JAVA_TOOL_OPTIONS
+        value: -XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=20

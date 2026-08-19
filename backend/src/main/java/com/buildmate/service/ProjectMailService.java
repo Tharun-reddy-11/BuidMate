@@ -1,36 +1,51 @@
 package com.buildmate.service;
 
 import com.buildmate.entity.ProjectRequest;
-import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class ProjectMailService {
-  private final JavaMailSender sender;
+  private final RestClient client;
   private final boolean enabled;
+  private final String apiKey;
   private final String fromAddress;
   private final String fromName;
 
-  public ProjectMailService(JavaMailSender sender,
+  public ProjectMailService(RestClient.Builder restClientBuilder,
       @Value("${app.mail.enabled}") boolean enabled,
-      @Value("${spring.mail.username}") String fromAddress,
+      @Value("${app.mail.brevo-api-key:}") String apiKey,
+      @Value("${app.mail.from-email}") String fromAddress,
       @Value("${app.mail.from-name}") String fromName) {
-    this.sender=sender; this.enabled=enabled; this.fromAddress=fromAddress; this.fromName=fromName;
+    this.client=restClientBuilder.baseUrl("https://api.brevo.com/v3").build();
+    this.enabled=enabled;
+    this.apiKey=apiKey;
+    this.fromAddress=fromAddress;
+    this.fromName=fromName;
   }
 
   public void sendAccepted(ProjectRequest request) {
     if (!enabled) return;
+    if (apiKey.isBlank()) throw new IllegalStateException("Brevo API key is not configured");
     try {
-      MimeMessage message=sender.createMimeMessage();
-      MimeMessageHelper helper=new MimeMessageHelper(message,"UTF-8");
-      helper.setFrom(fromAddress,fromName);
-      helper.setTo(request.getEmail());
-      helper.setSubject("Your BuildMate project request has been accepted — "+request.getRequestCode());
-      helper.setText(html(request),true);
-      sender.send(message);
+      Map<String,Object> payload=Map.of(
+          "sender",Map.of("name",fromName,"email",fromAddress),
+          "to",List.of(Map.of("name",request.getTeamLeadName(),"email",request.getEmail())),
+          "replyTo",Map.of("name",fromName,"email",fromAddress),
+          "subject","Your BuildMate project request has been accepted — "+request.getRequestCode(),
+          "htmlContent",html(request));
+      client.post()
+          .uri("/smtp/email")
+          .header("api-key",apiKey)
+          .contentType(MediaType.APPLICATION_JSON)
+          .body(payload)
+          .retrieve()
+          .toBodilessEntity();
     } catch (Exception ex) {
       throw new IllegalStateException("Request accepted, but the confirmation email could not be sent",ex);
     }
