@@ -16,7 +16,7 @@ services:
       - key: DB_PASSWORD
         sync: false
       - key: FRONTEND_URLS
-        sync: false
+        value: http://localhost:5173,http://127.0.0.1:5173,https://buildmate-steel.vercel.app
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_EMAIL
