@@ -5,12 +5,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class ProjectMailService {
+  private static final Logger log=LoggerFactory.getLogger(ProjectMailService.class);
   private final RestClient client;
   private final boolean enabled;
   private final String apiKey;
@@ -29,9 +33,10 @@ public class ProjectMailService {
     this.fromName=fromName;
   }
 
-  public void sendAccepted(ProjectRequest request) {
-    if (!enabled) return;
-    if (apiKey.isBlank()) throw new IllegalStateException("Brevo API key is not configured");
+  public DeliveryReceipt sendAccepted(ProjectRequest request) {
+    if (!enabled) throw new MailDeliveryException("Email delivery is disabled on Render. Set MAIL_ENABLED=true and redeploy.");
+    if (apiKey.isBlank()) throw new MailDeliveryException("Brevo API key is missing on Render.");
+    if (fromAddress.isBlank()) throw new MailDeliveryException("The Brevo sender email is missing on Render.");
     try {
       Map<String,Object> payload=Map.of(
           "sender",Map.of("name",fromName,"email",fromAddress),
@@ -39,17 +44,43 @@ public class ProjectMailService {
           "replyTo",Map.of("name",fromName,"email",fromAddress),
           "subject","Your BuildMate project request has been accepted — "+request.getRequestCode(),
           "htmlContent",html(request));
-      client.post()
+      BrevoResponse response=client.post()
           .uri("/smtp/email")
           .header("api-key",apiKey)
           .contentType(MediaType.APPLICATION_JSON)
           .body(payload)
           .retrieve()
-          .toBodilessEntity();
+          .body(BrevoResponse.class);
+      if (response==null || response.messageId()==null || response.messageId().isBlank()) {
+        throw new MailDeliveryException("Brevo did not return a delivery message ID.");
+      }
+      log.info("Acceptance email queued by Brevo: requestCode={}, recipient={}, messageId={}",
+          request.getRequestCode(),request.getEmail(),response.messageId());
+      return new DeliveryReceipt(response.messageId());
+    } catch (MailDeliveryException ex) {
+      throw ex;
+    } catch (RestClientResponseException ex) {
+      log.error("Brevo rejected acceptance email: requestCode={}, status={}, response={}",
+          request.getRequestCode(),ex.getStatusCode(),ex.getResponseBodyAsString());
+      int status=ex.getStatusCode().value();
+      if (status==401 || status==403) {
+        throw new MailDeliveryException("Brevo rejected the API key or transactional-email access. Check BREVO_API_KEY and activate transactional email in Brevo.",ex);
+      }
+      if (status==400) {
+        throw new MailDeliveryException("Brevo rejected the sender. Verify MAIL_FROM_EMAIL in Brevo and use the exact same verified address on Render.",ex);
+      }
+      if (status==402 || status==429) {
+        throw new MailDeliveryException("Brevo's daily email allowance is exhausted. Try again after the allowance resets.",ex);
+      }
+      throw new MailDeliveryException("Brevo could not queue the acceptance email (HTTP "+status+").",ex);
     } catch (Exception ex) {
-      throw new IllegalStateException("Request accepted, but the confirmation email could not be sent",ex);
+      log.error("Acceptance email request failed: requestCode={}",request.getRequestCode(),ex);
+      throw new MailDeliveryException("The acceptance email could not be sent. Please try again.",ex);
     }
   }
+
+  public record DeliveryReceipt(String messageId) {}
+  private record BrevoResponse(String messageId) {}
 
   private String html(ProjectRequest r) {
     return """

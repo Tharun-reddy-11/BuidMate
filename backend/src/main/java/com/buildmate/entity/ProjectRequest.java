@@ -29,6 +29,8 @@ public class ProjectRequest {
   private LocalDate expectedDeliveryDate;
   @Enumerated(EnumType.STRING) @Column(nullable=false) private Status status = Status.NEW;
   @Column(nullable=false, updatable=false) private Instant createdAt = Instant.now();
+  private Instant acceptanceEmailSentAt;
+  private String acceptanceEmailMessageId;
   public enum ProjectType { COLLEGE_PROJECT, RESUME_PROJECT, CUSTOM_PROJECT }
   public enum Status { NEW, ACCEPTED, REJECTED, CONTACTED, DISCUSSION, CONFIRMED, DEVELOPING, IN_PROGRESS, COMPLETED, CANCELLED }
   public Long getId(){return id;} public String getRequestCode(){return requestCode;} public void setRequestCode(String v){requestCode=v;}
@@ -42,4 +44,7 @@ public class ProjectRequest {
   public Integer getTeamSize(){return teamSize;} public void setTeamSize(Integer v){teamSize=v;} public String getPreferredStack(){return preferredStack;} public void setPreferredStack(String v){preferredStack=v;}
   public String getBudget(){return budget;} public void setBudget(String v){budget=v;} public LocalDate getExpectedDeliveryDate(){return expectedDeliveryDate;} public void setExpectedDeliveryDate(LocalDate v){expectedDeliveryDate=v;}
   public Status getStatus(){return status;} public void setStatus(Status v){status=v;} public Instant getCreatedAt(){return createdAt;}
+  public Instant getAcceptanceEmailSentAt(){return acceptanceEmailSentAt;}
+  public String getAcceptanceEmailMessageId(){return acceptanceEmailMessageId;}
+  public void recordAcceptanceEmail(String messageId){acceptanceEmailSentAt=Instant.now();acceptanceEmailMessageId=messageId;}
 }
